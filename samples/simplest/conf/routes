@@ -1,0 +1,17 @@
+# Routes
+# This file defines all application routes (Higher priority routes first)
+# ~~~~
+
+# Home page
+GET     /                           	  controllers.Application.index
+
+GET     /connect    	         		  controllers.Application.connect(id: Option[String])
+
+GET     /websocket                        controllers.Application.websocket(id: String)
+
+GET     /list                             controllers.Application.listMembers
+
+GET     /assets/javascripts/websocket.js  controllers.Application.websocketJs(id: String)
+
+# Map static resources from the /public folder to the /assets URL path
+GET     /assets/*file               controllers.Assets.at(path="/public", file)

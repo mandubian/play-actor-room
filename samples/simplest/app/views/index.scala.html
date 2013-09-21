@@ -1,0 +1,19 @@
+@(connected: Option[String] = None)
+
+@main(connected) {
+
+	@connected.map { id =>
+	    <p class="pull-right">
+	        Logged in as @id —
+	        <a href="@routes.Application.index()">Disconnect</a>
+	    </p>
+	    Type message: <textarea id="msg"></textarea>
+
+	    <script type="text/javascript" charset="utf-8" src="@routes.Application.websocketJs(id)"></script>
+  	}.getOrElse {
+	    <form action="@routes.Application.connect(None)" class="pull-right">
+	        <input id="username" name="id" class="input-small" type="text" placeholder="Username">
+	        <button class="btn" type="submit">Sign in</button>
+	    </form>
+	}
+}
