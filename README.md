@@ -1,13 +1,14 @@
 # Play Actor Room
 
-## A Room manager for Play Framework 2.2 based on Websockets & Bots
+####A Room manager for Play Framework 2.2 based on Websockets & Bots
+
 
 **Actor-Room** makes it easy to:
 
 - create any group of connected entities (people or not) (chatroom, forum, broadcast pivot...)
 - manage connections, disconnections, broadcast, targetted message through actor and nothing else.
 
-For now, members can be managed with:
+For now, members can be:
 - websocket endpoints through actors without taking care of Iteratees/Enumerators...
 - Bots to simulate members
 
@@ -37,11 +38,12 @@ object MyController extends Controller {
 
         // the enumerator to be able to send messages
         val enumerator = // generally a PushEnumerator
+        (iteratee, enumerator)
     }
 }
 ```
 
-Generally, the `Enumerator[A]` is created using 'Concurrent.broadcast[A]' and 'Concurrent.unicast[A]' which are very powerful tools but not so easy to understand exactly (the edge-cases of connection close, errors are always tricky).
+Generally, the `Enumerator[A]` is created using `Concurrent.broadcast[A]` and `Concurrent.unicast[A]` which are very powerful tools but not so easy to understand exactly (the edge-cases of connection close, errors are always tricky).
 
 You often want to:
 
@@ -53,30 +55,44 @@ You often want to:
 - create bots to be able to simulate fake connected members
 - etc...
 
-To do that in Play non-blocking/async architecture, you often end developing an Actor System managing all events/messages on top of the previous Iteratee/Enumerator. The Iteratee/Enumerator is quite generic but always not so easy to write. The actor system is generic in the majority because there are administration messages that are almost always the same:
+To do that in Play non-blocking/async architecture, you often end developing an Actor topology managing all events/messages on top of the previous `Iteratee/Enumerator`. 
+
+The `Iteratee/Enumerator` is quite generic but always not so easy to write.
+
+The actor topology is quite generic because there are administration messages that are almost always the same:
 
 - Connection/Forbidden/Disconnection
 - Broadcast/Send
 
->So **Actor Room** is there to shortcut all of this so that you can just focus on message management using actors and nothing else. It provides all default behaviors and all behaviors can be overriden if needed. It exposes only actors and nothing else.
+<br/>
+> **Actor Room** is a helper managing all of this for you. 
+> So you can just focus on message management using actors and nothing else. It provides all default behaviors and all behaviors can be overriden if needed. It exposes only actors and nothing else.
 
+<br/>
 *The code is based on the chatroom sample (and a cool sample by Julien Tournay) from Play Framework pushed far further and in a more generic way.*
 
 ## What is Actor Room?
 
-An actor room manages a group of connected members which are represented by 2 actors (1 receiver & 1 sender):
+An actor room manages a group of connected members which are supervised by a supervisor
+
+### Member = 2 actors (receiver/sender)
+
+Each member is represented by 2 actors (1 receiver & 1 sender):
 
 - **You MUST create at least a Receiver Actor because it's your job to manage your own message format**
 
 - The Sender Actor has a default implementation but you can override it.
 
+### Supervisor = 1 actor
 
 All actors are managed by 1 supervisor which have two roles:
 
-- supervises receiver/sender actors:
+- Creates/supervises all receiver/sender actors
 
-- manages administration messages (routing, forwarding, broadcasting etc...)
+- Manages administration messages (routing, forwarding, broadcasting etc...)
 
+
+# Code sample step by step
 
 ## Create the Actor Room
 
@@ -89,9 +105,16 @@ All actors are managed by 1 supervisor which have two roles:
   val room = Room(Props(classOf[CustomSupervisor]))
 ```
 
-The room creates the Supervisor for you.
+The room creates the Supervisor actor for you and delegates the creation of receiver/sender actors to it.
 
-You can manage several rooms in the same project.
+If you want to broadcast a message or target a precise member, you should use the supervisor.
+
+```scala
+  room.supervisor ! Broadcast("fromId", Json.obj("foo" -> "bar"))
+  room.supervisor ! Send("fromId", "toId", Json.obj("foo" -> "bar"))
+```
+
+> You can manage several rooms in the same project.
 
 ## Create the mandatory Receiver Actor
 
@@ -105,9 +128,9 @@ There is only one message to manage:
 case class Received[A](from: String, payload: A) extends Message
 ```
 
-If your websocket contains Json, then it should be `Received[JsValue]`.
+If your websocket frames contain Json, then it should be `Received[JsValue]`.
 
-You just have to create a simple actor and manage:
+You just have to create a simple actor:
 
 ```scala
 // Create an actor to receive messages from websocket
@@ -172,6 +195,45 @@ object Application extends Controller {
 }
 ```
 
+## All together
+
+```scala
+import akka.actor._
+
+import play.api._
+import play.api.mvc._
+import play.api.libs.json._
+
+// Implicits
+import play.api.Play.current
+import play.api.libs.concurrent.Execution.Implicits._
+
+import org.mandubian.actorroom._
+
+class Receiver extends Actor {
+  def receive = {
+    case Received(from, js: JsValue) =>
+      (js \ "msg").asOpt[String] match {
+        case None => play.Logger.error("couldn't msg in websocket event")
+        case Some(s) =>
+          play.Logger.info(s"received $s")
+          context.parent ! Broadcast(from, Json.obj("msg" -> s))
+      }
+  }
+}
+
+object Application extends Controller {
+
+  val room = Room()
+
+  def websocket(id: String) = room.websocket[Receiver, JsValue](id)
+
+}
+
+```
+
+# Extend default behaviors
+
 ## Override the administration message format
 
 `AdminMsgFormatter` typeclass is used by ActorRoom to format administration messages (Connected, Disconnected and Error) by default.
@@ -181,14 +243,22 @@ object Application extends Controller {
 You can override the format as following:
 
 ```scala
+
+// put this implicit in the same scope where you create your websocket endpoint
 implicit val msgFormatter = new AdminMsgFormatter[JsValue]{
     def connected(id: String) = Json.obj("kind" -> "connected", "id" -> id)
     def disconnected(id: String) = Json.obj("kind" -> "disconnected", "id" -> id)
     def error(id: String, msg: String) = Json.obj("kind" -> "error", "id" -> id, "msg" -> msg)
 }
+
+// then this msgFormatter will be used for all administration messages  
+def websocket(id: String) = room.websocket[Receiver, JsValue](id)
+
 ```
 
 ## Override the Sender Actor
+
+You just have to create a new actor as following:
 
 ```scala
 class MyCustomSender extends Actor {
