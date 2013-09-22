@@ -41,10 +41,15 @@ sealed trait Message
 case class   Received[A](from: String, payload: A) extends Message
 
 // public sender messages
+/** Sender actor is initialized by Supervisor */
 case class   Init(id: String, receiverActor: ActorRef)
+/** Sends a message from a member to another member */
 case class   Send[A](from: String, to: String, payload: A) extends Message
+/** Broadcasts a message from a member */
 case class   Broadcast[A](from: String, payload: A) extends Message
+/** member with ID has connected */
 case class   Connected(id: String) extends Message
+/** member with ID has disconnected */
 case class   Disconnected(id: String) extends Message
 
 // Administration messages...
@@ -56,7 +61,7 @@ case class   ConnectedWS[A](id: String, receiver: ActorRef, enumerator: Enumerat
 
 // Bot specific
 case class   ConnectBot(id: String, receiverProps: Props, senderProps: Props) extends Message
-case class   ConnectedBot[A](id: String, receiver: ActorRef) extends Message
+case class   ConnectedBot[A](id: String, member: Member) extends Message
 
 case class   BroadcastMessage(payload: Message) extends Message
 case class   Forbidden(id: String, err: String) extends Message
@@ -160,14 +165,14 @@ class Room(supervisorProps: Props)(implicit app: Application) {
   }
 
   def bot[Payload](id: String)
-    (implicit msgFormatter: AdminMsgFormatter[Payload]): Future[ActorRef] = 
+    (implicit msgFormatter: AdminMsgFormatter[Payload]): Future[Member] = 
     bot(id, Props[BotReceiver[Payload]])
 
   def bot[Payload](
     id: String,
-    receiverProps: Props = Props[BotReceiver[Payload]]
-  )(implicit msgFormatter: AdminMsgFormatter[Payload]): Future[ActorRef] = {
-    val senderProps = Props(classOf[BotSender[Payload]], msgFormatter)
+    senderProps: Props
+  )(implicit msgFormatter: AdminMsgFormatter[Payload]): Future[Member] = {
+    val receiverProps = Props(classOf[BotReceiver[Payload]], msgFormatter)
     bot(id, receiverProps, senderProps)
   }
 
@@ -175,13 +180,13 @@ class Room(supervisorProps: Props)(implicit app: Application) {
     id: String,
     receiverProps: Props,
     senderProps: Props
-  ): Future[ActorRef] = {
+  ): Future[Member] = {
 
     implicit val timeout = Timeout(1 second)
 
     (supervisor ? ConnectBot(id, receiverProps, senderProps)).map {
 
-      case ConnectedBot(_, actor) => actor
+      case ConnectedBot(_, member) => member
 
       case Forbidden(_, error)   => throw new RuntimeException(error)
     }
@@ -306,7 +311,7 @@ class Supervisor extends Actor {
 
         self ! Connected(id)
 
-        sender ! ConnectedBot(id, receiveActor)
+        sender ! ConnectedBot(id, Member(id, receiveActor, sendActor))
       }
 
     case s: Send[_] =>

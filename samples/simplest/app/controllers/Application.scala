@@ -40,7 +40,7 @@ object Application extends Controller {
     def error(id: String, msg: String) = Json.obj("kind" -> "error", "id" -> id, "msg" -> msg)
   }
 
-  val wsm = Room()
+  val room = Room()
 
   def index = Action {
     Ok(views.html.index())
@@ -54,10 +54,10 @@ object Application extends Controller {
     Ok(views.js.websocket(id))
   }
 
-  def websocket(id: String) = wsm.websocket[Receiver, JsValue](id)
+  def websocket(id: String) = room.websocket[Receiver, JsValue](id)
 
   def listMembers = Action.async {
-    wsm.members.map( ids => Ok(Json.toJson(ids)) )
+    room.members.map( ids => Ok(Json.toJson(ids)) )
   }
 }
 
