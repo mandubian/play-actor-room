@@ -110,7 +110,7 @@ object AdminMsgFormatter{
   */
 class Room(supervisorProps: Props)(implicit app: Application) {
 
-  lazy val supervisor = Akka.system.actorOf(supervisorProps, "supervisor")
+  lazy val supervisor = Akka.system.actorOf(supervisorProps)
 
   def websocket[Receiver <: Actor : scala.reflect.ClassTag, Payload](id: String)
     (implicit frameFormatter: FrameFormatter[Payload],
