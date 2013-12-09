@@ -223,6 +223,12 @@ object Room {
 
   def apply(supervisorProps: Props)(implicit app: Application) =
     new Room(supervisorProps)(app)
+
+  def async[A]( fws: => Future[WebSocket[A]] )(implicit frameFormatter: WebSocket.FrameFormatter[A]) = {
+    WebSocket[A](h => (e, i) => {
+      fws onSuccess { case ws => ws.f(h)(e, i) }
+    })
+  }
 }
 
 /** The default actor sender for WebSockets */

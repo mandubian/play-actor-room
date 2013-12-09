@@ -4,7 +4,7 @@ import Keys._
 object BuildSettings {
   val buildName              = "play-actor-room"
   val buildOrganization      = "org.mandubian"
-  val buildVersion           = "0.1"
+  val buildVersion           = "0.2"
 
   val buildScalaVersion      = "2.10.2"
 
