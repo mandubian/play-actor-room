@@ -13,7 +13,7 @@ object ApplicationBuild extends Build {
 	)
 
 	val appDependencies = Seq(
-	  "org.mandubian" %% "play-actor-room" % "0.1"
+	  "org.mandubian" %% "play-actor-room" % "0.2"
 	)
 
   val main = play.Project(appName, appVersion, appDependencies).settings(
