@@ -166,7 +166,7 @@ class Room(supervisorProps: Props)(implicit app: Application) {
 
   def bot[Payload](id: String)
     (implicit msgFormatter: AdminMsgFormatter[Payload]): Future[Member] = 
-    bot(id, Props[BotReceiver[Payload]])
+    bot(id, Props(classOf[BotSender[Payload]],msgFormatter))
 
   def bot[Payload](
     id: String,
@@ -275,7 +275,7 @@ class BotSender[Payload](implicit msgFormatter: AdminMsgFormatter[Payload]) exte
 }
 
 /** The default actor receiver for Bots */
-class BotReceiver[Payload] extends Actor {
+class BotReceiver[Payload](implicit msgFormatter: AdminMsgFormatter[Payload]) extends Actor {
 
   def receive = {
     case r: Received[Payload] =>
